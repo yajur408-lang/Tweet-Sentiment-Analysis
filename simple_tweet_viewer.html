@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tweet Sentiment Viewer</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        h1, h2, h3 {
+            color: #000;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #000;
+            margin-bottom: 30px;
+        }
+        
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #000;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .tweet-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tweet-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .tweet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .tweet-date {
+            color: #000;
+            font-size: 14px;
+        }
+        
+        .tweet-stock {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .tweet-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #000;
+            margin-bottom: 15px;
+        }
+        
+        .sentiment-badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .sentiment-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .sentiment-positive {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .sentiment-negative {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .sentiment-neutral {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #000;
+        }
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tweets-container {
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .tweets-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .tweets-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .tweets-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        
+        .tweets-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Tweet Sentiment Viewer</h1>
+        <p class="subtitle">Browse and analyze tweets with sentiment labels</p>
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label>Stock</label>
+                <select id="stockFilter" multiple>
+                    <option value="all">All Stocks</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>TextBlob Sentiment</label>
+                <select id="textblobFilter">
+                    <option value="all">All</option>
+                    <option value="positive">Positive</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="negative">Negative</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>VADER Sentiment</label>
+                <select id="vaderFilter">
+                    <option value="all">All</option>
+                    <option value="positive">Positive</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="negative">Negative</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Search Tweets</label>
+                <input type="text" id="searchInput" placeholder="Enter keyword...">
+            </div>
+            <div class="filter-group">
+                <label>Max Tweets to Show</label>
+                <input type="number" id="maxTweets" value="50" min="10" max="500" step="10">
+            </div>
+        </div>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <h3>Total Tweets</h3>
+                <div class="value" id="totalTweets">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Positive</h3>
+                <div class="value" id="positiveCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Neutral</h3>
+                <div class="value" id="neutralCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Negative</h3>
+                <div class="value" id="negativeCount">0</div>
+            </div>
+        </div>
+        
+        <div class="charts-container">
+            <div class="chart-box">
+                <h3>TextBlob Sentiment Distribution</h3>
+                <div id="textblobChart"></div>
+            </div>
+            <div class="chart-box">
+                <h3>VADER Sentiment Distribution</h3>
+                <div id="vaderChart"></div>
+            </div>
+        </div>
+        
+        <h2 style="margin: 30px 0 15px 0;">Tweets</h2>
+        <div class="tweets-container" id="tweetsContainer">
+            <div class="loading">Loading tweets... Please select the CSV file.</div>
+        </div>
+        
+        <input type="file" id="csvFile" accept=".csv" style="margin-top: 20px;">
+        <label for="csvFile" style="display: block; margin-top: 10px; color: #000;">
+            📁 Select tweets_with_sentiment.csv file
+        </label>
+    </div>
+    
+    <script>
+        let allData = [];
+        let filteredData = [];
+        
+        // Load CSV file
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        allData = results.data;
+                        updateFilters();
+                        applyFilters();
+                    }
+                });
+            }
+        });
+        
+        // Update stock filter options
+        function updateFilters() {
+            const stocks = [...new Set(allData.map(d => d['stock name']).filter(Boolean))].sort();
+            const stockSelect = document.getElementById('stockFilter');
+            stockSelect.innerHTML = '<option value="all">All Stocks</option>';
+            stocks.forEach(stock => {
+                const option = document.createElement('option');
+                option.value = stock;
+                option.textContent = stock;
+                stockSelect.appendChild(option);
+            });
+        }
+        
+        // Apply filters
+        function applyFilters() {
+            filteredData = [...allData];
+            
+            // Stock filter
+            const selectedStocks = Array.from(document.getElementById('stockFilter').selectedOptions)
+                .map(opt => opt.value);
+            if (!selectedStocks.includes('all') && selectedStocks.length > 0) {
+                filteredData = filteredData.filter(d => selectedStocks.includes(d['stock name']));
+            }
+            
+            // TextBlob sentiment filter
+            const textblobFilter = document.getElementById('textblobFilter').value;
+            if (textblobFilter !== 'all') {
+                filteredData = filteredData.filter(d => 
+                    d.textblob_sentiment?.toLowerCase() === textblobFilter.toLowerCase()
+                );
+            }
+            
+            // VADER sentiment filter
+            const vaderFilter = document.getElementById('vaderFilter').value;
+            if (vaderFilter !== 'all') {
+                filteredData = filteredData.filter(d => 
+                    d.vader_sentiment?.toLowerCase() === vaderFilter.toLowerCase()
+                );
+            }
+            
+            // Search filter
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (searchTerm) {
+                filteredData = filteredData.filter(d => 
+                    d.tweet?.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            updateStats();
+            updateCharts();
+            displayTweets();
+        }
+        
+        // Update statistics
+        function updateStats() {
+            document.getElementById('totalTweets').textContent = filteredData.length.toLocaleString();
+            
+            const positive = filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'positive').length;
+            const neutral = filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'neutral').length;
+            const negative = filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'negative').length;
+            
+            document.getElementById('positiveCount').textContent = positive.toLocaleString();
+            document.getElementById('neutralCount').textContent = neutral.toLocaleString();
+            document.getElementById('negativeCount').textContent = negative.toLocaleString();
+        }
+        
+        // Update charts
+        function updateCharts() {
+            // TextBlob chart
+            const tbCounts = {
+                positive: filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'positive').length,
+                neutral: filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'neutral').length,
+                negative: filteredData.filter(d => d.textblob_sentiment?.toLowerCase() === 'negative').length
+            };
+            
+            Plotly.newPlot('textblobChart', [{
+                values: [tbCounts.positive, tbCounts.neutral, tbCounts.negative],
+                labels: ['Positive', 'Neutral', 'Negative'],
+                type: 'pie',
+                marker: {
+                    colors: ['#28a745', '#ffc107', '#dc3545']
+                }
+            }], {
+                margin: { t: 0, b: 0, l: 0, r: 0 }
+            });
+            
+            // VADER chart
+            const vaderCounts = {
+                positive: filteredData.filter(d => d.vader_sentiment?.toLowerCase() === 'positive').length,
+                neutral: filteredData.filter(d => d.vader_sentiment?.toLowerCase() === 'neutral').length,
+                negative: filteredData.filter(d => d.vader_sentiment?.toLowerCase() === 'negative').length
+            };
+            
+            Plotly.newPlot('vaderChart', [{
+                values: [vaderCounts.positive, vaderCounts.neutral, vaderCounts.negative],
+                labels: ['Positive', 'Neutral', 'Negative'],
+                type: 'pie',
+                marker: {
+                    colors: ['#28a745', '#ffc107', '#dc3545']
+                }
+            }], {
+                margin: { t: 0, b: 0, l: 0, r: 0 }
+            });
+        }
+        
+        // Display tweets
+        function displayTweets() {
+            const container = document.getElementById('tweetsContainer');
+            const maxTweets = parseInt(document.getElementById('maxTweets').value) || 50;
+            const tweetsToShow = filteredData.slice(0, maxTweets);
+            
+            if (tweetsToShow.length === 0) {
+                container.innerHTML = '<div class="loading">No tweets match your filters.</div>';
+                return;
+            }
+            
+            container.innerHTML = tweetsToShow.map((tweet, idx) => {
+                const tbSentiment = tweet.textblob_sentiment?.toLowerCase() || 'neutral';
+                const vaderSentiment = tweet.vader_sentiment?.toLowerCase() || 'neutral';
+                const date = tweet.date || 'N/A';
+                const stock = tweet['stock name'] || 'N/A';
+                
+                return `
+                    <div class="tweet-card">
+                        <div class="tweet-header">
+                            <div>
+                                <span class="tweet-date">📅 ${date}</span>
+                                <span class="tweet-stock" style="margin-left: 10px;">📈 ${stock}</span>
+                            </div>
+                        </div>
+                        <div class="tweet-text">${tweet.tweet || 'N/A'}</div>
+                        <div class="sentiment-badges">
+                            <span class="sentiment-badge sentiment-${tbSentiment}">
+                                📊 TextBlob: ${tweet.textblob_sentiment || 'N/A'} (${parseFloat(tweet.textblob_score || 0).toFixed(3)})
+                            </span>
+                            <span class="sentiment-badge sentiment-${vaderSentiment}">
+                                📊 VADER: ${tweet.vader_sentiment || 'N/A'} (${parseFloat(tweet.vader_score || 0).toFixed(3)})
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Event listeners
+        document.getElementById('stockFilter').addEventListener('change', applyFilters);
+        document.getElementById('textblobFilter').addEventListener('change', applyFilters);
+        document.getElementById('vaderFilter').addEventListener('change', applyFilters);
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+        document.getElementById('maxTweets').addEventListener('change', applyFilters);
+    </script>
+</body>
+</html>
+
